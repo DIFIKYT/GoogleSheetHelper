@@ -11,74 +11,26 @@ namespace GoogleSheetsHelper
 
         public async Task BatchUpdateCells(string spreadsheetId, List<Request> requests)
         {
-            if (requests == null || requests.Count == 0)
-                return;
-
             try
             {
-                const int maxBatchSize = 1000;
-                const int maxRetries = 3;
-
-                List<List<Request>> batches = requests
-                    .Select((req, index) => new { req, index })
-                    .GroupBy(x => x.index / maxBatchSize)
-                    .Select(g => g.Select(x => x.req).ToList())
-                    .ToList();
-
-                foreach (List<Request> batch in batches)
+                BatchUpdateSpreadsheetRequest batchUpdateRequest = new()
                 {
-                    BatchUpdateSpreadsheetRequest batchRequest = new()
-                    {
-                        Requests = batch
-                    };
+                    Requests = requests
+                };
 
-                    bool success = false;
-                    int retryCount = 0;
+                await _sheetsService!.Spreadsheets.BatchUpdate(batchUpdateRequest, spreadsheetId).ExecuteAsync();
 
-                    while (success == false && retryCount < maxRetries)
-                    {
-                        try
-                        {
-                            SpreadsheetsResource.BatchUpdateRequest request =
-                                _sheetsService.Spreadsheets.BatchUpdate(batchRequest, spreadsheetId);
-
-                            await request.ExecuteAsync();
-                            success = true;
-
-                            if (batches.Count > 1)
-                                await Task.Delay(1000);
-                        }
-                        catch (GoogleApiException ex) when (ex.HttpStatusCode == HttpStatusCode.TooManyRequests)
-                        {
-                            retryCount++;
-
-                            if (retryCount >= maxRetries)
-                            {
-                                Console.WriteLine($"Failed after {maxRetries} retries: {ex.Message}");
-                                throw;
-                            }
-
-                            int delay = (int)Math.Pow(2, retryCount) * 1000;
-                            await Task.Delay(delay);
-                        }
-                        catch (Exception exception)
-                        {
-                            Console.WriteLine($"Error during batch cell update: {exception.Message}");
-                            throw;
-                        }
-                    }
-                }
+                requests.Clear();
             }
             catch (Exception exception)
             {
-                Console.WriteLine($"\n\nОшибка в BatchUpdateCells '{_sheetsService.Spreadsheets.Get(spreadsheetId).Execute().Properties.Title}'\n{exception}\n\n");
+                Console.WriteLine("Ошибка в BatchUpdateCells - " + exception);
             }
         }
 
-        public Request GetCopyPastInCurrentTableRequest(string spreadsheetId, int sheetId, List<Request> requests, StartEndRange copyRange, StartEndRange pastRange)
+        public Request GetCopyPastInCurrentTableRequest(string spreadsheetId, int? sheetId, StartEndRange copyRange, StartEndRange pastRange)
         {
             ArgumentNullException.ThrowIfNull(sheetId);
-            ArgumentNullException.ThrowIfNull(requests);
             ArgumentNullException.ThrowIfNull(copyRange);
             ArgumentNullException.ThrowIfNull(pastRange);
 
@@ -91,18 +43,18 @@ namespace GoogleSheetsHelper
                         Source = new GridRange
                         {
                             SheetId = sheetId,
-                            StartRowIndex = copyRange.StartRow,
-                            EndRowIndex = copyRange.EndRow,
-                            StartColumnIndex = copyRange.StartColumn,
-                            EndColumnIndex = copyRange.EndColumn
+                            StartRowIndex = copyRange.StartRowIndex,
+                            EndRowIndex = copyRange.EndRowIndex,
+                            StartColumnIndex = copyRange.StartColumnIndex,
+                            EndColumnIndex = copyRange.EndColumnIndex
                         },
                         Destination = new GridRange
                         {
                             SheetId = sheetId,
-                            StartRowIndex = pastRange.StartRow,
-                            EndRowIndex = pastRange.EndRow,
-                            StartColumnIndex = pastRange.StartColumn,
-                            EndColumnIndex = pastRange.EndColumn
+                            StartRowIndex = pastRange.StartRowIndex,
+                            EndRowIndex = pastRange.EndRowIndex,
+                            StartColumnIndex = pastRange.StartColumnIndex,
+                            EndColumnIndex = pastRange.EndColumnIndex
                         },
                         PasteType = "PASTE_NORMAL",
                         PasteOrientation = "NORMAL"

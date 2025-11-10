@@ -13,11 +13,11 @@ namespace GoogleSheetsHelper
         /// Shell address format should be "ListName!ColumnNameRowNumber". Example: "Sheet!A1".
         /// </summary>
         /// <param name="spreadsheetId"></param>
-        /// <param name="shellAddressToValue"></param>
+        /// <param name="shellAdressToValue"></param>
         /// <returns></returns>
-        public async Task BatchUpdateValues(string spreadsheetId, Dictionary<string, string> shellAddressToValue)
+        public async Task BatchUpdateValues(string spreadsheetId, Dictionary<string, string> shellAdressToValue)
         {
-            if (shellAddressToValue.Count == 0)
+            if (shellAdressToValue.Count == 0)
             {
                 return;
             }
@@ -27,7 +27,7 @@ namespace GoogleSheetsHelper
                 const int maxBatchSize = 1000;
                 const int maxRetries = 3;
 
-                List<List<KeyValuePair<string, string>>> batches = shellAddressToValue
+                List<List<KeyValuePair<string, string>>> batches = shellAdressToValue
                     .Select((kvp, index) => new { kvp, index })
                     .GroupBy(x => x.index / maxBatchSize)
                     .Select(g => g.Select(x => x.kvp).ToList())
@@ -80,10 +80,13 @@ namespace GoogleSheetsHelper
                         }
                     }
                 }
+
+                shellAdressToValue.Clear();
             }
             catch (Exception exception)
             {
                 Console.WriteLine($"\n\nОшибка в BatchUpdateValues '{_sheetsService.Spreadsheets.Get(spreadsheetId).Execute().Properties.Title}'\n{exception}\n\n");
+                shellAdressToValue.Clear();
             }
         }
 
@@ -94,20 +97,22 @@ namespace GoogleSheetsHelper
         /// <param name="range"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException"></exception>
-        public async Task ClearData(string spreadsheetId, string range)
+        public async Task BatchClearData(string spreadsheetId, List<string> clearRanges)
         {
-            if (string.IsNullOrEmpty(range))
-                throw new ArgumentNullException(nameof(range));
-
             try
             {
-                ClearValuesRequest clearValuesRequest = new();
+                BatchClearValuesRequest requestBody = new()
+                {
+                    Ranges = clearRanges.ToList()
+                };
 
-                await _sheetsService.Spreadsheets.Values.Clear(clearValuesRequest, spreadsheetId, range).ExecuteAsync();
+                await _sheetsService!.Spreadsheets.Values.BatchClear(requestBody, spreadsheetId).ExecuteAsync();
+
+                clearRanges.Clear();
             }
             catch (Exception exception)
             {
-                Console.WriteLine($"\n\nОшибка в ClearData '{_sheetsService.Spreadsheets.Get(spreadsheetId).Execute().Properties.Title}'\n{exception}\n\n");
+                Console.WriteLine("Ошибка в BatchClearData - " + exception);
             }
         }
 
@@ -129,6 +134,72 @@ namespace GoogleSheetsHelper
         public ValueRange GetValueByShellsRange(string spreadsheetId, string range)
         {
             return _sheetsService.Spreadsheets.Values.Get(spreadsheetId, range).Execute();
+        }
+
+        /// <summary>
+        /// Return number last row with data
+        /// </summary>
+        /// <param name="spreadsheetId"></param>
+        /// <param name="range"></param>
+        /// <returns></returns>
+        public int GetLastRow(string spreadsheetId, string range)
+        {
+            try
+            {
+                ValueRange valueRange = _sheetsService.Spreadsheets.Values.Get(spreadsheetId, range).Execute();
+
+                if (valueRange == null || valueRange.Values == null)
+                    return 1;
+
+                return valueRange.Values.Count;
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine("Ошибка получения последний строки");
+                Console.WriteLine(exception);
+                return -1;
+            }
+        }
+
+        public int GetLastColumn(string spreadsheetId, string range)
+        {
+            try
+            {
+                ValueRange valueRange = _sheetsService.Spreadsheets.Values.Get(spreadsheetId, range).Execute();
+
+                if (valueRange?.Values == null || valueRange.Values.Count == 0)
+                    return 1;
+
+                int maxColumns = 0;
+
+                foreach (var row in valueRange.Values)
+                {
+                    if (row.Count > maxColumns)
+                        maxColumns = row.Count;
+                }
+
+                return maxColumns;
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine("Ошибка получения последнего столбца");
+                Console.WriteLine(exception);
+                return -1;
+            }
+        }
+        
+        public Spreadsheet GetSpreadsheet(string spreadsheetId)
+        {
+            try
+            {
+                return _sheetsService!.Spreadsheets.Get(spreadsheetId).Execute();
+            }
+            catch (Exception exception)
+            {
+                Console.WriteLine("Ошибка в GetSpreadsheet - " + exception);
+            }
+
+            return new();
         }
     }
 }

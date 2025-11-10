@@ -49,5 +49,24 @@ namespace GoogleSheetsHelper
                 return false;
             }
         }
+
+        /// <summary>
+        /// Return -1 if list not found
+        /// </summary>
+        /// <param name="spreadsheet"></param>
+        /// <param name="listName"></param>
+        /// <returns></returns>
+        public static int? GetSheetId(Spreadsheet spreadsheet, string listName)
+        {
+            foreach (Sheet sheet in spreadsheet.Sheets)
+            {
+                if (sheet.Properties.Title == listName)
+                {
+                    return sheet.Properties.SheetId;
+                }
+            }
+
+            return -1;
+        }
     }
 }
